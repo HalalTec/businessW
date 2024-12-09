@@ -1,4 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';  
+import pako from 'pako';
+import {Buffer} from 'buffer';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import * as am5 from "@amcharts/amcharts5";
@@ -6,7 +9,6 @@ import * as am5xy from "@amcharts/amcharts5/xy";
 import * as am5radar from '@amcharts/amcharts5/radar';
 import am5themes_Animated from "@amcharts/amcharts5/themes/Animated";
 import emailjs from 'emailjs-com';
-import axios from 'axios';
 import { numberToString } from '@amcharts/amcharts5/.internal/core/util/Type';
 
 const Result = ({
@@ -14,6 +16,7 @@ const Result = ({
 
         }) => {
             const contentRef = useRef(null);
+            const navigate = useNavigate();  
 
             const params = new URLSearchParams();
             const [mail, setMail] = useState(false)
@@ -31,9 +34,7 @@ const Result = ({
                 { name: 'Spirituality and Inner Growth', values: [spirit[0], spirit[1], spirit[1] - spirit[0], ((spirit[0]/spirit[1])*100)] },
                 { name: 'Physical and Emotional Health ', values: [health[0], health[1], health[1] - health[0], ((health[0]/health[1])*100)] },
                 { name: 'Purpose and Fulfillment ', values: [purpose[0], purpose[1], purpose[1] - purpose[0], ((purpose[0]/purpose[1])*100)] },
-                { name: 'Contribution and Legacy ', values: [contribution[0], contribution[1], contribution[1] - contribution[0], ((contribution[0]/contribution[1])*100)] }
-
-
+                { name: 'Contribution and Legacy ', values: [contribution[0], contribution[1], contribution[1] - contribution[0], ((contribution[0]/contribution[1])*100)] },
             ];
 
         
@@ -47,8 +48,50 @@ const Result = ({
                 });
               });
 
-            const baseUrl = 'wheel-of-life-free-app.vercel.app/email';
-            const newUrl = `${baseUrl}?${params.toString()}`;
+            // const baseUrl = 'wheel-of-life-free-app.vercel.app/email';
+            const baseUrl = '/email';
+            // const newUrl = `${baseUrl}?${params.toString()}`;
+              let timeFrame = '';
+              if(selected == '6 Months') {
+                timeFrame = 'm'
+              }else if (selected == '1 Year') {
+                timeFrame = 'y'
+              }else {
+                timeFrame = 'yr'
+              }
+
+                console.log(timeFrame)
+            //new url
+            const encodeCategoriesToShortUrl = (categories) => {
+                // Step 1: Convert categories to JSON string
+                const jsonString = JSON.stringify(categories);
+            
+                // Step 2: Compress the JSON string using pako
+                const compressed = pako.deflate(jsonString, { to: 'string' });
+            
+                // Step 3: Encode the compressed data to Base64
+                const base64Encoded = Buffer.from(compressed).toString('base64');
+            
+                // Step 4: Construct the URL
+                return `${baseUrl}?payload=${encodeURIComponent(base64Encoded)}&i=${timeFrame}`;
+            };
+
+            // const shortenUrl = async (longUrl) => {
+            //     const response = await fetch('https://api.tinyurl.com/create', {
+            //         method: 'POST',
+            //         headers: {
+            //             'Authorization': `Bearer YOUR_TINYURL_ACCESS_TOKEN`,
+            //             'Content-Type': 'application/json',
+            //         },
+            //         body: JSON.stringify({ url: longUrl }),
+            //     });
+            //     const data = await response.json();
+            //     return data.data.tiny_url;
+            // };
+        
+            const newUrl = encodeCategoriesToShortUrl(categories);
+            //end url
+            console.log(newUrl)
 
               //Magnitude and balance Calculation
               function calculateMean(values) {
@@ -241,7 +284,22 @@ const Result = ({
                 // setStyle({display:'none'})
             }
 
+
             const styleIt = {textAlign:"center", width:"50%"}
+            const ra = {
+                marginLeft: `${gap_avg}%`,
+                border:'none',
+              }
+
+              useEffect(() => {
+                // Logic for page load complete
+                const timer = setTimeout(() => {
+                    console.log('Page A loaded. Navigating to Page B...');
+                    navigate(newUrl); // Navigate to Page B
+                }, 1000); // Delay to simulate page load
+        
+                return () => clearTimeout(timer); // Cleanup on component unmount
+            }, [navigate]);
 
     return ( 
         <>
@@ -250,7 +308,7 @@ const Result = ({
             <h1 style={{textAlign:"center"}}>Your Results</h1>
             <div className="mean">
                          <div className='range'>
-                        <h2> Your Business Wheel score:</h2>
+                        <h2> Your Wheel of Life score:</h2>
                         <p>0% <input id="range" type="range" min="0" max="100" value={((mean_percent + balance)/2).toFixed(2)} /> 100%
                         <p style={styleIt}> {((mean_percent + balance)/2).toFixed(2)}% </p>
                         </p>
@@ -264,8 +322,12 @@ const Result = ({
                         </div>
 
                         <div className='range'>
-                        <p>On the journey to your selected future self, you have covered: 
-                        </p> Now<input    id="range" type="range" min="0" max="100" value={gap_avg} />{selected} <p style={styleIt}> {gap_avg.toFixed(2)}%</p>
+                        <p>On the journey to your selected future self, you have covered: </p> 
+                        <p> Past<input    id="range" type="range" min="0" max="100" value={gap_avg}/>{selected} 
+                        <div style={{width:'50%', marginTop:'-10px'}}> <span style={ra}>Now </span>
+                        <p style={{width:'100%', marginTop:'-30px', textAlign:'center'}}> {gap_avg.toFixed(2)}%</p>
+                        </div>
+                        </p>
                         </div>
                         
             </div>

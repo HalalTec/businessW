@@ -1,36 +1,116 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';  
+import pako from 'pako'; 
+import { Buffer } from 'buffer';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import * as am5 from "@amcharts/amcharts5";
 import * as am5xy from "@amcharts/amcharts5/xy";
 import * as am5radar from '@amcharts/amcharts5/radar';
 import am5themes_Animated from "@amcharts/amcharts5/themes/Animated";
+import Embed from './Embed';
 
 const Email = () => {
+
+    const [eBook, seteBook] = useState(false)
+    const [hide, setHide] = useState(false)
+
+    const navigate = useNavigate();  
 
     const queryString = window.location.search;
 
     const params = new URLSearchParams(queryString)
 
-    const parameters = {}
-
-    for(const [key, value] of params) {
-        if (!parameters[key]) {
-            parameters[key]=[]
-        }
-
-        parameters[key].push(value)
+    let  duration = ''; 
+    if(params.get('i') == 'y'){
+        duration = '1 year'
+    }else if (params.get('i') =='yr') {
+        duration = '3 years'
+    }else {
+        duration = '6 months'
     }
 
-    const sortedParameters = Object.entries(parameters).map(([key, values]) => {
-        return { key, values };
-      });
+
+
+// new setting
+
+
+const decodeCategoriesFromUrl = (url) => {
+    try {
+        // Step 1: Parse the URL and extract query parameters
+        const urlParams = new URL(url).searchParams;
+
+        // Step 2: Get the Base64-encoded payload
+        const base64EncodedPayload = urlParams.get('payload');
+
+        if (!base64EncodedPayload) {
+            throw new Error('Payload not found in the URL.');
+        }
+
+        // Step 3: Decode the Base64 string back to binary data
+        const compressedData = Buffer.from(base64EncodedPayload, 'base64');
+
+        // Step 4: Decompress the binary data using pako
+        const decompressed = pako.inflate(compressedData, { to: 'string' });
+
+        // Step 5: Parse the decompressed JSON string back into the original object
+        const categories = JSON.parse(decompressed);
+
+        return categories;
+    } catch (error) {
+        console.error('Error decoding the URL payload:', error);
+        navigate('/'); 
+
+    }
+};
+
+// Example usage with window.location.href
+const decodedCategories = decodeCategoriesFromUrl(window.location.href);
+
+
+
+  const sorted = [...decodedCategories].sort((a, b) => {
+    const valueA = parseInt(a.values[2], 10) || 0; 
+    const valueB = parseInt(b.values[2], 10) || 0; 
+    return valueB - valueA; 
+  });
+
+
+//end new setting
+
+ //Magnitude and balance Calculation
+ function calculateMean(values) {
+    const sum = values.reduce((acc, value) => acc + value, 0);
+    return sum / values.length;
+  }
+  
+  
+  // Function to calculate the standard deviation of an array of numbers
+  function calculateStandardDeviation(values) {
+    const mean = calculateMean(values);
+    const variance = values.reduce((acc, value) => acc + Math.pow(value - mean, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  function roundUpToDecimal(number, decimalPlaces) {
+    const factor = Math.pow(10, decimalPlaces);
+    return Math.ceil(number * factor) / factor;
+  }
+
+    const startingValues = decodedCategories.map(category => parseInt(category.values[0]));
+    const meanAvg = calculateMean(startingValues);
+    const Standard = calculateStandardDeviation(startingValues);
     
-      const sorted = [...sortedParameters].sort((a, b) => {
-        const valueA = parseInt(a.values[2], 10) || 0; 
-        const valueB = parseInt(b.values[2], 10) || 0; 
-        return valueB - valueA; 
-      });
+    const mean = roundUpToDecimal(meanAvg, 2)
+    const mean_percent = ((mean/10) * 100) 
+    const SD = roundUpToDecimal(Standard, 2)
+    const balance = roundUpToDecimal(((1-(SD / mean)) * 100), 1);                
+
+    const startingVal = decodedCategories.map(category => parseInt(category.values[3]));
+    const gap = calculateMean(startingVal)
+    const gap_avg = gap
+
+// calculation ends here
       
       useEffect(() => {
         // Create root element
@@ -149,12 +229,54 @@ const Email = () => {
             pdf.save('download.pdf');
         })
     }
+
+    const styleIt = {textAlign:"center", width:"50%"}
+    const ra = {
+        marginLeft: `${gap_avg}%`,
+        border:'none',
+      }
     
+
+      const display = () => {
+        seteBook(true)
+        setHide(true)
+      }
+
+      const hidden = () => {
+        seteBook(false)
+        setHide(false)
+      }
+
+
     return ( <>
 
-<div id='res' >
+<div id='res'>
             <h1 style={{textAlign:"center"}}>Your Results</h1>
-            
+            <div className="mean">
+                         <div className='range'>
+                        <h2> Your Wheel of Life score:</h2>
+                        <p>0% <input id="range" type="range" min="0" max="100" value={((mean_percent + balance)/2).toFixed(2)} /> 100%
+                        <p style={styleIt}> {((mean_percent + balance)/2).toFixed(2)}% </p>
+                        </p>
+                        </div>
+
+                        <div className='range'>
+                        <p>How balanced is your life right now: </p>
+                        <p>0% <input id="range" type="range" min="0" max="100" value={balance}/> 100%
+                        <p style={styleIt}>{balance}%</p>
+                        </p>
+                        </div>
+
+                        <div className='range'>
+                        <p>On the journey to your selected future self, you have covered: </p> 
+                        <p> Past<input    id="range" type="range" min="0" max="100" value={gap_avg}/>{duration} 
+                        <div style={{width:'50%', marginTop:'-10px'}}> <span style={ra}>Now </span>
+                        <p style={{width:'100%', marginTop:'-30px', textAlign:'center'}}> {gap_avg.toFixed(2)}%</p>
+                        </div>
+                        </p>
+                        </div>
+                        
+            </div>
             <div className="result" id="result">
                 <div className="pie">
                     <div id="chartdiv" className='chartdiv'></div>
@@ -174,7 +296,7 @@ const Email = () => {
                         {sorted.map((category, index) => (
                         <tr key={index}>
                             <td>Domain {index+1}</td>
-                            <td style={{textAlign:"left"}}>{category.key}</td>
+                            <td style={{textAlign:"left"}}>{category.name}</td>
                             <td>{category.values[0]}</td>
                             <td>{category.values[1]}</td>
                             <td>{category.values[2]}</td>
@@ -182,9 +304,13 @@ const Email = () => {
                     ))}
 
                     </table>
-                
+                    <button onClick={save} style={{width:'40%'}}>Download Your Result </button>
+
                 </div>
             </div>
+            <div>   
+            </div>
+
                     <div className="observe">
                     <h3> Looking at your wheel above: </h3>
                     <li> How do you feel as you look at your wheel?</li>
@@ -203,43 +329,13 @@ const Email = () => {
                     <li>If there was one key action that would begin to bring everything into balance, what would it be?</li>
                     <li>What if time money/time/energy were not an issue? What could you do in each area?</li>
                     </div>
-                    <div className='observe' style={{textAlign:"center", padding:"50px"}}>
-                  <h3>  What is the Wheel of Life? </h3>
-<p> The Wheel of Life is a powerful self-assessment tool designed to help you reflect on where you currently stand in key areas of your life and identify where you'd like to be in the future. </p>
-
-<p> This simple yet comprehensive tool offers a clear snapshot of your overall well-being across multiple life domains. Think of it as a guide to creating balance and alignment, helping you move forward with intention and clarity. </p>
-
-<h3> What is the Job Search Wheel? </h3>
-<p> The Job Search Wheel is a self-assessment tool to be used to evaluate different aspects of your job search process. It helps identify strengths and areas for improvement by breaking down key elements involved in job hunting. </p>
-
-<p> The tool would help you better understand where you may need to focus more attention to enhance your chances of finding the right job. </p>
-
-
-<h3> What is the Career Wheel? </h3>
-<p>The Career Wheel is a tailored tool to help professionals evaluate and reflect on where they currently stand in their career and where they aim to be. </p>
-
-<p> This free assessment provides a holistic view of essential domains related to professional growth and well-being, offering a structured way to identify strengths, gaps, and actionable steps to accelerate success. </p>
-
-
-<h3> What is the Relationship Wheel ? </h3>
-<p> The Relationship Wheel is a tool designed to help you reflect on the current state of your relationships and identify areas where improvement could lead to deeper connection and fulfillment. </p>
-
-<p>This free assessment offers a holistic view of essential relationship dynamics, giving you insights into where you are thriving, where adjustments might be needed, and how to move forward toward meaningful growth together. </p>
-
-<h3> What is the Business Wheel? </h3>
-<p> The Business Wheel is a tool designed to help you assess the current state of your business across key operational areas and identify where improvements are needed to achieve long-term success. </p>
-
-<p>This free assessment provides a comprehensive view of your business health, allowing you to pinpoint strengths, spot gaps, and map out a strategy for growth and sustainability. </p>
-
-
-<h3> What is the C-Suite Readiness Wheel </h3>
-<p> The C-Suite Readiness Wheel is a tool designed to help professionals evaluate their preparedness for senior leadership roles. It provides a structured assessment across the essential competencies required to thrive at the executive level. </p>
-
-<p> This free assessment tool helps you reflect on where your strengths lie, identify areas for improvement, and strategize ways to develop the skills and mindset necessary for C-suite success. </p>
-                    </div>
             <div className="below">
             <h3>Ready for the next step?</h3>
-            <button onClick={save}>Download Your Result </button>
+           {hide === false && <button onClick={display}> Get Your eBook </button> }
+            <div className="eBook">
+            {eBook === true && <Embed />} 
+            </div>
+            {hide === true && <button onClick={hidden}> Close </button> }
             </div>
             </div>
             <div>

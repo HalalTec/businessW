@@ -31,7 +31,7 @@ const Wheel = () => {
 
 <div className="super-container">
             <div className='Header'>
-            <h1><b>Kaizen Wheel of Life</b></h1>
+            <h1><b>Kaizen Business Wheel</b></h1>
             <hr></hr>
             </div>
             <h3 className="title">This tool works by comparing your current state against a selected future state </h3>
